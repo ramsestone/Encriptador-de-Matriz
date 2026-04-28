@@ -1,11 +1,11 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
 ║           CIFRADO DE HILL — Encriptación Matricial           ║
-║         Basado en álgebra lineal sobre Z₂₆ (mod 26)         ║
+║         Basado en álgebra lineal sobre Z₂₆ (mod 26)          ║
 ╚══════════════════════════════════════════════════════════════╝
 
 TEORÍA:
-  El Cifrado de Hill usa una matriz clave K (n×n) invertible en Z₂₆.
+  El Cifrado de Hill usa una matriz clave K (nxn) invertible en Z₂₆.
   - Encriptar: C = K · P  (mod 26)
   - Desencriptar: P = K⁻¹ · C  (mod 26)
   donde K⁻¹ es la inversa modular de K en Z₂₆.
@@ -17,9 +17,15 @@ ALFABETO: A=0, B=1, ..., Z=25
 """
 
 import numpy as np
-from math import gcd
+from sympy import Matrix
 import questionary
+import string
 
+# ─── Constantes ───────────────────────────────────────────────
+# Usamos módulo 95 para tomar todos los carácteres imprimibles de string.printable
+# Rango de 0-94
+MOD = 95
+ALPHANUMERIC_CHARS = string.printable[:-6]
 
 # ─── Colores ANSI para terminal ───────────────────────────────────────────────
 class C:
@@ -49,11 +55,11 @@ PRESET_KEYS = {
         "matrix": np.array([[6, 24], [1, 13]]),
         "desc": "Otro ejemplo 2x2 válido",
     },
-    # "3": {
-    #     "name": "Clave 3x3 Estándar",
-    #     "matrix": np.array([[6, 24, 1], [13, 16, 10], [20, 17, 15]]),
-    #     "desc": "Mayor seguridad con bloques de 3",
-    # },
+    "3": {
+        "name": "Clave 3x3 Estándar",
+        "matrix": np.array([[6, 24, 1], [13, 16, 10], [20, 17, 15]]),
+        "desc": "Mayor seguridad con bloques de 3",
+    },
     # "4": {
     #     "name": "Clave 3x3 Compacta",
     #     "matrix": np.array([[1, 2, 3], [0, 1, 4], [5, 6, 0]]),
@@ -65,52 +71,21 @@ PRESET_KEYS = {
 # ─── Utilerías matemáticas ────────────────────────────────────────────────────
 
 
-def mod_inverse(a: int, m: int) -> int:
-    """Inversa modular de 'a' en Z_m usando algoritmo extendido de Euclides."""
-    a = a % m
-    for x in range(1, m):
-        if (a * x) % m == 1:
-            return x
-    raise ValueError(f"No existe inversa modular de {a} en Z_{m}")
+def get_modular_inverse(key_matrix, modulo=256):
+    # Convierte el arreglo de numpy a una Matrix de SymPy para exactitud aritmética
+    sympy_matrix = Matrix(key_matrix)
+    
+    try:
+        # Calcula la matriz inversa modulo m
+        inverse_matrix = sympy_matrix.inv_mod(modulo)
+    except ValueError:
+        raise ValueError(f"The matrix is not invertible under modulo {modulo}.")
+        
+    return np.array(inverse_matrix).astype(int)
 
 
-def determinant_mod(matrix: np.ndarray, mod: int) -> int:
-    """Determinante de una matriz entera, reducido módulo `mod`."""
-    det = int(round(np.linalg.det(matrix)))
-    return det % mod
-
-
-def matrix_mod_inverse(matrix: np.ndarray, mod: int) -> np.ndarray:
-    """
-    Inversa modular de una matriz cuadrada en Z_mod.
-    Usa la fórmula: K⁻¹ = det(K)⁻¹ · adj(K)  (mod m)
-    donde adj(K) es la matriz adjunta (transpuesta de la cofactora).
-    """
-    n = matrix.shape[0]
-    det = determinant_mod(matrix, mod)
-
-    if gcd(det, mod) != 1:
-        raise ValueError(
-            f"La matriz NO es invertible en Z_{mod}.\n"
-            f"  det(K) = {det},  gcd({det}, {mod}) = {gcd(det, mod)} ≠ 1"
-        )
-
-    det_inv = mod_inverse(det, mod)
-
-    # Matriz adjunta mediante cofactores
-    adj = np.zeros((n, n), dtype=int)
-    for i in range(n):
-        for j in range(n):
-            # Minor: eliminar fila i, columna j
-            minor = np.delete(np.delete(matrix, i, axis=0), j, axis=1)
-            cofactor = int(round(np.linalg.det(minor))) * ((-1) ** (i + j))
-            adj[j][i] = cofactor  # Transpuesta de cofactores
-
-    return (det_inv * adj) % mod
-
-
-# ─── Funciones generales ───────────────────────────────────────────────────────────
-def pad_message(message, matrix_size):
+# ─── Funciones de texto ───────────────────────────────────────────────────────────
+def pad_text(message, matrix_size) -> str:
     # Calcula cuántos carácteres se ocupan para rellenar la matriz cuadrada
     padding_length = matrix_size - (len(message) % matrix_size)
 
@@ -120,22 +95,97 @@ def pad_message(message, matrix_size):
 
     return message
 
-
 def text_to_numbers(text: str) -> list[int]:
-    """Convierte texto a lista de números 0–256."""
-    return [ord(c) for c in text.upper()]
+    clean_text = "".join([char for char in text if char in ALPHANUMERIC_CHARS])
+    return [ALPHANUMERIC_CHARS.index(char) for char in clean_text]
+
+def numbers_to_text(numeric_vectors):
+    cipher_text = ""
+    
+    # Iterate through the resulting vectors
+    for vector in numeric_vectors:
+        for number in vector:
+            # Replace chr(num) with a direct string index lookup
+            cipher_text += ALPHANUMERIC_CHARS[int(number)]
+            
+    return cipher_text
+
+def prepare_cipher_matrix(cipher_text, block_size):
+    """
+    Convierte el texto cifrado a una matriz de vectores
+    """
+    numeric_values = [ord(char) for char in cipher_text]
+    cipher_matrix = np.array(numeric_values).reshape(-1, block_size)
+    return cipher_matrix
+
+def clean_text(text: str) -> str:
+    clean_text = "".join([char if char in ALPHANUMERIC_CHARS else "_" for char in text])
+    return clean_text
 
 
-def encrypt(msg: str, matrix: np.ndarray):
+def encrypt(plaintext: str, key_matrix: np.ndarray) -> str:
     """
     Encripta usando el Cifrado de Hill.
-    C = K · P  (mod 226)
-    Retorna (texto_cifrado, pasos_de_visualización)
+    C = K · P  (mod 256)
+    Retorna (texto_cifrado)
     """
-    matrix_size = matrix.shape[0]
 
-    pass
+    plaintext = clean_text(plaintext)
 
+    transformed_numbers = []
+
+    n = key_matrix.shape[0]
+    padded = pad_text(plaintext, n)
+    numbers = text_to_numbers(padded)
+    # Dividimos la lista de números en matrices de bidimensionales
+    reshaped_vectors = np.array(numbers).reshape(-1, n)
+
+    for vector in reshaped_vectors:
+       transformed_vector = vector @ key_matrix % MOD
+       transformed_numbers.append(transformed_vector)
+    
+    cyphered_numbers = np.array(transformed_numbers)
+
+    return numbers_to_text(cyphered_numbers)
+
+def decrypt(cipher_text: str, key_matrix: np.ndarray) -> str:
+    """
+    Decrypts a message using the Hill Cipher.
+    P = K^-1 @ C (mod m)
+    Returns the decrypted plain text string.
+    """
+    # 1. Prepare the cipher matrix from the input string
+    block_size = key_matrix.shape[0]
+    
+    # Translate cipher text characters back to their integer indices
+    numeric_values = [ALPHANUMERIC_CHARS.index(char) for char in cipher_text]
+    
+    # Reshape into a 2D array (the C matrix)
+    cipher_matrix = np.array(numeric_values).reshape(-1, block_size)
+    
+    # 2. Get the inverse key matrix (assuming get_modular_inverse is already defined)
+    inverse_key_matrix = get_modular_inverse(key_matrix, MOD)
+    
+    decrypted_matrix = []
+    
+    # 3. Iterate over the CIPHER matrix (not the key matrix)
+    for vector in cipher_matrix:
+        # P_i = (K^-1 @ C_i) mod m
+        decrypted_vector = (inverse_key_matrix @ vector) % MOD
+        decrypted_matrix.append(decrypted_vector)
+        
+    decrypted_array = np.array(decrypted_matrix)
+    
+    # 4. Initialize the string variable before appending to it
+    plain_text = "" 
+    
+    # 5. Convert numeric vectors back to string using the custom alphabet
+    for vector in decrypted_array:
+        for number in vector:
+            plain_text += ALPHANUMERIC_CHARS[int(number)]
+
+    # Remove the padding character if it was added during encryption
+    return plain_text
 
 # ─── Visualización de consola ───────────────────────────────────────────────────────────
 def print_banner():
@@ -164,6 +214,11 @@ def print_matrix(matrix: np.ndarray, label: str = "", color: str = C.CYAN):
         print(f"  {top}  {vals}  {bottom}")
     print()
 
+def print_section(title: str, color: str = C.YELLOW):
+    print(f"\n{color}{C.BOLD}  {'─'*52}")
+    print(f"  {title}")
+    print(f"  {'─'*52}{C.RESET}\n")
+
 
 # ─── Menú principal ───────────────────────────────────────────────────────────
 
@@ -181,31 +236,55 @@ def main():
 
     choice = questionary.select(
         "Selecciona una matriz clave para encriptar",
-        [
-            "1",
-            "2"
-        ]
+        list(PRESET_KEYS)
     ).ask()
 
-    if choice == "1":
-        matrix = PRESET_KEYS["1"]["matrix"]
-    elif choice == "2":
-        matrix = PRESET_KEYS["2"]["matrix"]
+    if choice in PRESET_KEYS.keys():
+        matrix = PRESET_KEYS[choice]["matrix"]
+
     print(f"{C.BOLD}{C.CYAN} Matriz seleccionada: {C.RESET}")
     print_matrix(matrix, color = C.BLUE)
 
+    while True:
 
-    choice = questionary.select(
-        "Selecciona una opción:", 
-        [
-            "Encriptar texto", 
-            "Desencriptar texto"
-        ]
-    ).ask()
+        choice = questionary.select(
+            "Selecciona una opción:", 
+            [
+                "Encriptar texto", 
+                "Desencriptar texto",
+                "Salir"
+            ]
+        ).ask()
 
-    if choice == "Encriptar texto":
-        msg = input(f"{C.BOLD}Ingresa un texto a encriptar: {C.RESET}")
-        encrypt(msg, matrix)
+        if choice == "Encriptar texto":
+            msg = questionary.text(
+                f"Ingresa un texto a encriptar: ",
+                style=questionary.Style([
+                    ("question", "fg:#1ADBDB bold"),
+                    ("answer", "fg:#FFFFFF bold")
+                    ])
+            ).ask()
+            crypted_msg = encrypt(msg, matrix)
+
+            print_section(f"Tu mensaje encriptado: {crypted_msg}", C.RED)
+
+        if choice == "Desencriptar texto":
+            msg = questionary.text(
+                f"Ingresa un texto a desencriptar: ",
+                style=questionary.Style([
+                    ("question", "fg:#1ADBDB bold"),
+                    ("answer", "fg:#FFFFFF bold")
+                    ])
+            ).ask()
+            crypted_msg = decrypt(msg, matrix)
+
+            print_section(f"Tu mensaje desencriptado: {crypted_msg}", C.GREEN)
+
+        if choice == "Salir":
+            print_section("Ciao! :)", C.CYAN)
+            break
+
+
 
 
 if __name__ == "__main__":

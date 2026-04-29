@@ -24,8 +24,8 @@ import string
 # ─── Constantes ───────────────────────────────────────────────
 # Usamos módulo 95 para tomar todos los carácteres imprimibles de string.printable
 # Rango de 0-94
-MOD = 95
-ALPHANUMERIC_CHARS = string.printable[:-6]
+ALPHANUMERIC_CHARS = string.printable[:-5]
+MOD = len(ALPHANUMERIC_CHARS)
 
 # ─── Colores ANSI para terminal ───────────────────────────────────────────────
 class C:
@@ -141,9 +141,9 @@ def encrypt(plaintext: str, key_matrix: np.ndarray) -> str:
     reshaped_vectors = np.array(numbers).reshape(-1, n)
 
     for vector in reshaped_vectors:
-       transformed_vector = vector @ key_matrix % MOD
-       transformed_numbers.append(transformed_vector)
-    
+        transformed_vector = (key_matrix @ vector )% MOD
+        transformed_numbers.append(transformed_vector)
+
     cyphered_numbers = np.array(transformed_numbers)
 
     return numbers_to_text(cyphered_numbers)
@@ -283,8 +283,6 @@ def main():
         if choice == "Salir":
             print_section("Ciao! :)", C.CYAN)
             break
-
-
 
 
 if __name__ == "__main__":

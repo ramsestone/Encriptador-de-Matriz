@@ -1,0 +1,12 @@
+altgraph==0.17.5
+mpmath==1.3.0
+numpy==2.2.6
+packaging==26.2
+pefile==2024.8.26
+prompt_toolkit==3.0.52
+pyinstaller==6.20.0
+pyinstaller-hooks-contrib==2026.4
+pywin32-ctypes==0.2.3
+questionary==2.1.1
+sympy==1.14.0
+wcwidth==0.6.0

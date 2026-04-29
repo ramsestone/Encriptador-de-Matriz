@@ -153,10 +153,14 @@ def decrypt(cipher_text: str, key_matrix: np.ndarray) -> str:
     Returns the decrypted plain text string.
     """
     # 1. Transforma el texto ingresado en una matriz cifrada
+    n = key_matrix.shape[0]
+    cipher_text = pad_text(cipher_text, n)
     block_size = key_matrix.shape[0]
     
     # A cada caracter le corresponde un indice en nuestro diccionario de caracteres disponibles
     numeric_values = [ALPHANUMERIC_CHARS.index(char) for char in cipher_text]
+
+
     
     cipher_matrix = np.array(numeric_values).reshape(-1, block_size)
     

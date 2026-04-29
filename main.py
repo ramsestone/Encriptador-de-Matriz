@@ -71,7 +71,7 @@ PRESET_KEYS = {
 # ─── Utilerías matemáticas ────────────────────────────────────────────────────
 
 
-def get_modular_inverse(key_matrix, modulo=256):
+def get_modular_inverse(key_matrix, modulo=MOD):
     # Convierte el arreglo de numpy a una Matrix de SymPy para exactitud aritmética
     sympy_matrix = Matrix(key_matrix)
     
@@ -101,11 +101,9 @@ def text_to_numbers(text: str) -> list[int]:
 
 def numbers_to_text(numeric_vectors):
     cipher_text = ""
-    
-    # Iterate through the resulting vectors
+
     for vector in numeric_vectors:
         for number in vector:
-            # Replace chr(num) with a direct string index lookup
             cipher_text += ALPHANUMERIC_CHARS[int(number)]
             
     return cipher_text
@@ -126,7 +124,7 @@ def clean_text(text: str) -> str:
 def encrypt(plaintext: str, key_matrix: np.ndarray) -> str:
     """
     Encripta usando el Cifrado de Hill.
-    C = K · P  (mod 256)
+    C = K · P  (mod 95)
     Retorna (texto_cifrado)
     """
 
@@ -137,7 +135,7 @@ def encrypt(plaintext: str, key_matrix: np.ndarray) -> str:
     n = key_matrix.shape[0]
     padded = pad_text(plaintext, n)
     numbers = text_to_numbers(padded)
-    # Dividimos la lista de números en matrices de bidimensionales
+    # Dividimos la lista de números en matrices bidimensionales
     reshaped_vectors = np.array(numbers).reshape(-1, n)
 
     for vector in reshaped_vectors:
@@ -154,21 +152,18 @@ def decrypt(cipher_text: str, key_matrix: np.ndarray) -> str:
     P = K^-1 @ C (mod m)
     Returns the decrypted plain text string.
     """
-    # 1. Prepare the cipher matrix from the input string
+    # 1. Transforma el texto ingresado en una matriz cifrada
     block_size = key_matrix.shape[0]
     
-    # Translate cipher text characters back to their integer indices
+    # A cada caracter le corresponde un indice en nuestro diccionario de caracteres disponibles
     numeric_values = [ALPHANUMERIC_CHARS.index(char) for char in cipher_text]
     
-    # Reshape into a 2D array (the C matrix)
     cipher_matrix = np.array(numeric_values).reshape(-1, block_size)
     
-    # 2. Get the inverse key matrix (assuming get_modular_inverse is already defined)
     inverse_key_matrix = get_modular_inverse(key_matrix, MOD)
     
     decrypted_matrix = []
     
-    # 3. Iterate over the CIPHER matrix (not the key matrix)
     for vector in cipher_matrix:
         # P_i = (K^-1 @ C_i) mod m
         decrypted_vector = (inverse_key_matrix @ vector) % MOD
@@ -176,15 +171,13 @@ def decrypt(cipher_text: str, key_matrix: np.ndarray) -> str:
         
     decrypted_array = np.array(decrypted_matrix)
     
-    # 4. Initialize the string variable before appending to it
     plain_text = "" 
     
-    # 5. Convert numeric vectors back to string using the custom alphabet
+    # Volver a convertir el vector numerico a string
     for vector in decrypted_array:
         for number in vector:
             plain_text += ALPHANUMERIC_CHARS[int(number)]
 
-    # Remove the padding character if it was added during encryption
     return plain_text
 
 # ─── Visualización de consola ───────────────────────────────────────────────────────────
@@ -266,7 +259,7 @@ def main():
             ).ask()
             crypted_msg = encrypt(msg, matrix)
 
-            print_section(f"Tu mensaje encriptado: {crypted_msg}", C.RED)
+            print_section(f"Tu mensaje encriptado: {crypted_msg}", C.MAGENTA)
 
         if choice == "Desencriptar texto":
             msg = questionary.text(
